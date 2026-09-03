@@ -1,0 +1,26 @@
+=== CLOCK-IN TEST ===
+
+[1] Login john@oasis.com
+    Status: 200
+    Name:        John Doe
+    clock_in_id: OT-KNN9H3DS
+    id:          59908495-969f-4ef5-bbba-6fc8a883077c
+
+[2] Clock-in
+    Status: 409
+    Body:   {"error":"You have already clocked in today.","clock_in_time":"2026-09-02T18:46:57.432+00:00","code":"ALREADY_CLOCKED_IN"}
+
+[3] Clock-out
+    Status: 409
+    Body:   {"error":"You have already clocked out today.","clock_out_time":"2026-09-02T18:46:58.156+00:00"}
+
+[4] My attendance
+    Status: 200
+    Records: 1
+    > 2026-09-02 | in:2026-09-02T18:46:57.432+00:00 out:2026-09-02T18:46:58.156+00:00 status:late
+
+[5] Stats
+    Status: 200
+    Body:   {"total_days":1,"present":0,"late":1,"absent":0,"streak":0,"records":[{"date":"2026-09-02","status":"late","clock_in_time":"2026-09-02T18:46:57.432+00:00","clock_out_time":"2026-09-02T18:46:58.156+00:00"}]}
+
+=== DONE ===

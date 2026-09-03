@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oasis Pulse — My Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Gradient hero top bar ── */
+    .dash-hero {
+      background: var(--grad-primary);
+      padding: 1.75rem 2rem 3.5rem;
+      color: white; position: relative; overflow: hidden;
+    }
+    .dash-hero::before {
+      content:''; position:absolute; inset:0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    .dash-hero-content {
+      display: flex; align-items: center; justify-content: space-between;
+      position: relative; z-index: 1; flex-wrap: wrap; gap: 1rem;
+    }
+    .dash-hero h2 { color: white; font-size: 1.5rem; margin-bottom: .2rem; }
+    .dash-hero p  { color: rgba(255,255,255,.8); font-size: .85rem; margin: 0; }
+
+    /* Stats float over hero */
+    .stats-float {
+      margin-top: -2.5rem;
+      position: relative; z-index: 2;
+      padding: 0 2rem;
+    }
+    .stats-float .stats-grid { margin-bottom: 0; }
+
+    /* ── Today card with gradient accent ── */
+    .today-card-header {
+      background: linear-gradient(135deg, var(--gray-900), #1a1040);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      padding: 1rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .today-card-header .card-title { color: white; }
+
+    /* ── Calendar nav ── */
+    .cal-nav-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;
+    }
+
+    /* ── History row hover ── */
+    .history-row { display:flex; align-items:center; justify-content:space-between; padding:.875rem 1rem; border-bottom:1px solid var(--gray-100); transition: background var(--transition); }
+    .history-row:hover { background: var(--primary-bg); }
+
+    /* ── Rate label ── */
+    .rate-label { display:flex; justify-content:space-between; font-size:.75rem; color:var(--gray-500); margin-bottom:.3rem; }
+
+    @media (max-width: 900px) {
+      .dashboard-grid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+</head>
+<body>
+<script>window.location.replace('index.html');</script>
+<div class="page-wrapper">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🕒</div>
+      <div><div class="logo-text">Oasis Pulse</div><div class="logo-sub">Student Portal</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-link active" href="dashboard.html"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-link" href="clock-in.html"><span class="nav-icon">✅</span> Clock In / Out</a>
+      <div class="nav-section-label">History</div>
+      <a class="nav-link" href="#"><span class="nav-icon">📅</span> Attendance History</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="sidebar-avatar">?</div>
+        <div><div class="user-name" id="sidebar-name">Loading…</div><div class="user-role">Student</div></div>
+        <button class="logout-btn" id="logout-btn" title="Logout">🚪</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <!-- Hero -->
+    <div class="dash-hero">
+      <div class="dash-hero-content">
+        <div>
+          <h2 id="hero-greeting">Good morning! 👋</h2>
+          <p id="today-date">—</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;position:relative;z-index:1;">
+          <div class="clock-id-display" style="padding:.6rem 1.25rem;">
+            <div class="id-label" style="font-size:.6rem;margin-bottom:.1rem;">Clock-In ID</div>
+            <div class="id-value" style="font-size:.95rem;" id="header-clock-id">—</div>
+          </div>
+          <a href="clock-in.html" class="btn btn-lg" style="background:rgba(255,255,255,.2);color:white;border:2px solid rgba(255,255,255,.4);backdrop-filter:blur(10px);">
+            ✅ Clock In
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating stats -->
+    <div class="stats-float">
+      <div class="stats-grid">
+        <div class="stat-card green"><div class="stat-icon">✅</div><div><div class="stat-value" id="stat-present">—</div><div class="stat-label">Days Present</div></div></div>
+        <div class="stat-card yellow"><div class="stat-icon">⏰</div><div><div class="stat-value" id="stat-late">—</div><div class="stat-label">Days Late</div></div></div>
+        <div class="stat-card red"><div class="stat-icon">❌</div><div><div class="stat-value" id="stat-absent">—</div><div class="stat-label">Days Absent</div></div></div>
+        <div class="stat-card blue" style="flex-direction:column;align-items:flex-start;gap:.5rem;">
+          <div style="display:flex;align-items:center;gap:.75rem;width:100%;">
+            <div class="stat-icon">📈</div>
+            <div style="flex:1;"><div class="stat-value" id="stat-rate">—%</div><div class="stat-label">Attendance Rate</div></div>
+            <div id="streak-badge-wrap"></div>
+          </div>
+          <div style="width:100%;">
+            <div class="rate-label"><span>Rate</span><span id="rate-pct-label" style="color:rgba(255,255,255,.7)">0%</span></div>
+            <div class="rate-bar-wrap" style="background:rgba(255,255,255,.25);">
+              <div class="rate-bar-fill" id="rate-bar" style="width:0%;background:rgba(255,255,255,.9);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body" style="padding-top:1.5rem;">
+
+      <!-- Today's status -->
+      <div class="card" style="margin-bottom:1.5rem;overflow:hidden;">
+        <div class="today-card-header">
+          <span class="card-title">Today's Status</span>
+          <span id="today-badge">—</span>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;gap:2.5rem;flex-wrap:wrap;">
+            <div><div class="text-xs text-muted mb-1">Clock In</div><div class="font-bold" id="today-clock-in">—</div></div>
+            <div><div class="text-xs text-muted mb-1">Clock Out</div><div class="font-bold" id="today-clock-out">—</div></div>
+            <div><div class="text-xs text-muted mb-1">Duration</div><div class="font-bold" id="today-duration">—</div></div>
+            <div><div class="text-xs text-muted mb-1">Location</div><div class="font-bold" id="today-location">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar + History -->
+      <div class="dashboard-grid" style="display:grid;grid-template-columns:1fr 340px;gap:1.5rem;align-items:start;">
+        <div>
+          <div class="cal-nav-row">
+            <h3 class="grad-text">Attendance Calendar</h3>
+            <div style="display:flex;gap:.5rem;">
+              <select id="cal-month" class="form-control" style="width:auto;padding:.4rem .75rem;"></select>
+              <select id="cal-year"  class="form-control" style="width:auto;padding:.4rem .75rem;"></select>
+            </div>
+          </div>
+          <div class="calendar"><div class="calendar-grid" id="calendar-grid"></div>
+            <div class="calendar-legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>Present</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div>Late</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Absent</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--primary)"></div>Today</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+            <h3>Recent Activity</h3>
+            <button class="btn btn-ghost btn-sm" id="download-history-btn">⬇️ CSV</button>
+          </div>
+          <div class="card">
+            <div class="card-body" style="padding:0;" id="recent-list">
+              <div class="empty-state"><div class="empty-icon">📋</div><p>No records yet</p></div>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:.75rem;">
+            <button class="btn btn-ghost btn-sm" id="toggle-history-btn" style="display:none;">Show All ▼</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/api.js"></script>
+<script src="js/fingerprint.js"></script>
+<script>
+  const user  = JSON.parse(localStorage.getItem('tm_user')||'null');
+  const token = localStorage.getItem('tm_token');
+  if(!token||!user||user.role==='admin') window.location.href='index.html';
+
+  document.getElementById('sidebar-name').textContent    = user.full_name;
+  document.getElementById('sidebar-avatar').textContent  = user.full_name.charAt(0).toUpperCase();
+  document.getElementById('header-clock-id').textContent = user.clock_in_id||'—';
+
+  const now = new Date();
+  const hr  = now.getHours();
+  document.getElementById('hero-greeting').textContent =
+    (hr<12 ? 'Good morning, ' : hr<17 ? 'Good afternoon, ' : 'Good evening, ') + user.full_name.split(' ')[0] + '! 👋';
+  document.getElementById('today-date').textContent = now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  document.getElementById('logout-btn').addEventListener('click',()=>{
+    localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user');
+    window.location.href='index.html';
+  });
+
+  // Month/Year selectors
+  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const calM=document.getElementById('cal-month'), calY=document.getElementById('cal-year');
+  MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; if(i===now.getMonth()) o.selected=true; calM.appendChild(o); });
+  for(let y=now.getFullYear();y>=now.getFullYear()-3;y--){ const o=document.createElement('option'); o.value=y; o.textContent=y; if(y===now.getFullYear()) o.selected=true; calY.appendChild(o); }
+
+  // ── Load stats ──────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const data = await api.get('/attendance/stats/me');
+
+      const present = data.present ?? 0;
+      const late    = data.late    ?? 0;
+      const absent  = data.absent  ?? 0;
+      const streak  = data.streak  ?? 0;
+
+      document.getElementById('stat-present').textContent = present;
+      document.getElementById('stat-late').textContent    = late;
+      document.getElementById('stat-absent').textContent  = absent;
+
+      const total    = present + late + absent;
+      const attended = present + late;
+      const pct      = total > 0 ? Math.round((attended / total) * 100) : 0;
+
+      document.getElementById('stat-rate').textContent      = `${pct}%`;
+      document.getElementById('rate-pct-label').textContent = `${pct}%`;
+      document.getElementById('rate-bar').style.width       = `${pct}%`;
+
+      if (streak > 0) {
+        document.getElementById('streak-badge-wrap').innerHTML =
+          `<span class="streak-badge">🔥 ${streak}-day streak</span>`;
+      }
+
+      return data.records || [];
+    } catch(e) { console.error('loadStats error:', e); return []; }
+  }
+
+  // ── Load today ──────────────────────────────────────────
+  async function loadToday() {
+    try {
+      const today=now.toISOString().split('T')[0];
+      const data=await api.get(`/attendance/my?month=${now.getMonth()+1}&year=${now.getFullYear()}`);
+      const rec=data.attendance.find(r=>r.date===today);
+      if(rec){
+        const sm={present:'badge-success',late:'badge-warning',absent:'badge-danger'};
+        document.getElementById('today-badge').innerHTML=`<span class="badge ${sm[rec.status]||'badge-gray'}">${rec.status}</span>`;
+        document.getElementById('today-clock-in').textContent  = rec.clock_in_time  ? fmtTime(rec.clock_in_time)  : 'Not yet';
+        document.getElementById('today-clock-out').textContent = rec.clock_out_time ? fmtTime(rec.clock_out_time) : 'Not yet';
+        document.getElementById('today-duration').textContent  = calcDuration(rec.clock_in_time,rec.clock_out_time)||'—';
+        document.getElementById('today-location').textContent  = rec.locations?.name||'Unknown';
+      } else {
+        document.getElementById('today-badge').innerHTML='<span class="badge badge-gray">Not Clocked In</span>';
+        ['today-clock-in','today-clock-out','today-duration','today-location'].forEach(id=>document.getElementById(id).textContent='—');
+      }
+      return data.attendance||[];
+    } catch(e){ console.error(e); return []; }
+  }
+
+  // ── Calendar ────────────────────────────────────────────
+  function buildCalendar(month,year,records){
+    const grid=document.getElementById('calendar-grid');
+    const todayStr=new Date().toISOString().split('T')[0];
+    const attMap={};(records||[]).forEach(r=>{attMap[r.date]=r;});
+    const fd=new Date(year,month-1,1).getDay(), dim=new Date(year,month,0).getDate();
+    let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="calendar-day-name">${d}</div>`).join('');
+    for(let i=0;i<fd;i++) html+=`<div class="calendar-day empty"></div>`;
+    for(let d=1;d<=dim;d++){
+      const ds=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dow=new Date(year,month-1,d).getDay();
+      const rec=attMap[ds];
+      let cls='calendar-day', tip=ds;
+      if(ds===todayStr){ cls+=' today'; tip+=' (Today)'; if(rec){ cls+=` ${rec.status}`; tip+=` — ${rec.status}`; } }
+      else if(ds>todayStr) cls+=' future';
+      else if(dow===0||dow===6){ cls+=' weekend'; tip+=' (Weekend)'; }
+      else if(rec){ cls+=` ${rec.status}`; tip+=` — ${rec.status}`; if(rec.clock_in_time) tip+=` at ${fmtTime(rec.clock_in_time)}`; }
+      else{ cls+=' absent'; tip+=' — Absent'; }
+      html+=`<div class="${cls}" title="${tip}">${d}</div>`;
+    }
+    grid.innerHTML=html;
+  }
+
+  // ── Recent list ─────────────────────────────────────────
+  let allRecords=[], showingAll=false;
+  function buildRecentList(records){
+    allRecords=records||[];
+    const el=document.getElementById('recent-list');
+    const tb=document.getElementById('toggle-history-btn');
+    if(!allRecords.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p>No records yet</p></div>'; tb.style.display='none'; return; }
+    const toShow=showingAll?allRecords:allRecords.slice(0,8);
+    const sm={present:'badge-success',late:'badge-warning',absent:'badge-danger'};
+    el.innerHTML=toShow.map(r=>`
+      <div class="history-row">
+        <div>
+          <div class="font-bold text-sm">${fmtDate(r.date)}</div>
+          <div class="text-xs text-muted">${r.clock_in_time?fmtTime(r.clock_in_time):'—'} → ${r.clock_out_time?fmtTime(r.clock_out_time):'—'}${r.clock_in_time&&r.clock_out_time?' · <strong>'+calcDuration(r.clock_in_time,r.clock_out_time)+'</strong>':''}</div>
+        </div>
+        <span class="badge ${sm[r.status]||'badge-gray'}">${r.status||'—'}</span>
+      </div>`).join('');
+    if(allRecords.length>8){ tb.style.display='inline-flex'; tb.textContent=showingAll?'Show Less ▲':`Show All ${allRecords.length} Records ▼`; }
+    else tb.style.display='none';
+  }
+  document.getElementById('toggle-history-btn').addEventListener('click',()=>{ showingAll=!showingAll; buildRecentList(allRecords); });
+
+  // ── CSV export ──────────────────────────────────────────
+  document.getElementById('download-history-btn').addEventListener('click',()=>{
+    if(!allRecords.length){ showToast('No records to export.','info'); return; }
+    const rows=[['Date','Clock In','Clock Out','Duration','Status','Location','QR Used']];
+    allRecords.forEach(r=>rows.push([r.date,r.clock_in_time?new Date(r.clock_in_time).toLocaleTimeString():'',r.clock_out_time?new Date(r.clock_out_time).toLocaleTimeString():'',calcDuration(r.clock_in_time,r.clock_out_time)||'',r.status||'',r.locations?.name||'',r.qr_used?'Yes':'No']));
+    const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+    const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})),download:`${user.full_name.replace(/\s+/g,'-')}-attendance.csv`});
+    a.click(); showToast('CSV downloaded!','success');
+  });
+
+  // ── Calendar nav ────────────────────────────────────────
+  async function refreshCalendar(){
+    try{
+      const data=await api.get(`/attendance/my?month=${calM.value}&year=${calY.value}`);
+      buildCalendar(parseInt(calM.value),parseInt(calY.value),data.attendance);
+    }catch(e){console.error(e);}
+  }
+  calM.addEventListener('change',refreshCalendar);
+  calY.addEventListener('change',refreshCalendar);
+
+  function fmtTime(iso){ return new Date(iso).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+  function fmtDate(ds) { return new Date(ds+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+
+  async function init(){
+    const [statsRec, todayRec] = await Promise.all([loadStats(), loadToday()]);
+    buildCalendar(now.getMonth()+1, now.getFullYear(), todayRec);
+    buildRecentList(statsRec.length > todayRec.length ? statsRec : todayRec);
+  }
+  init();
+</script>
+</body>
+</html>

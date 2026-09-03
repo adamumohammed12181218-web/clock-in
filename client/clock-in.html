@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oasis Pulse — Clock In / Out</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Hero clock display ── */
+    .clock-hero {
+      text-align: center;
+      padding: 1.5rem 2rem;
+      background: var(--grad-primary);
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .clock-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .clock-time {
+      font-family: var(--font-mono);
+      font-size: 3rem; font-weight: 900;
+      letter-spacing: .05em; line-height: 1;
+      text-shadow: 0 2px 20px rgba(0,0,0,.2);
+    }
+    .clock-date { font-size: .9rem; opacity: .85; margin-top: .35rem; }
+
+    /* ── Circular action buttons ── */
+    .clock-btns-row {
+      display: flex; justify-content: center; align-items: flex-end;
+      gap: 2.5rem; margin: 2rem 0 1.25rem;
+    }
+    .clock-action-btn {
+      width: 148px; height: 148px; border-radius: 50%; border: none;
+      font-size: .95rem; font-weight: 800; cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: .5rem; position: relative;
+    }
+    .clock-action-btn .btn-icon-large { font-size: 2.2rem; line-height: 1; }
+    .clock-action-btn.clock-in-btn {
+      background: linear-gradient(135deg,#10b981,#06b6d4);
+      color: white; box-shadow: 0 8px 30px rgba(16,185,129,.45);
+    }
+    .clock-action-btn.clock-out-btn {
+      background: linear-gradient(135deg,#ef4444,#ec4899);
+      color: white; box-shadow: 0 8px 30px rgba(239,68,68,.4);
+    }
+    .clock-action-btn:not(:disabled):hover { transform: scale(1.08) translateY(-3px); }
+    .clock-action-btn.clock-in-btn:not(:disabled):hover  { box-shadow: 0 16px 40px rgba(16,185,129,.6); }
+    .clock-action-btn.clock-out-btn:not(:disabled):hover { box-shadow: 0 16px 40px rgba(239,68,68,.55); }
+    .clock-action-btn:disabled { opacity: .38; transform: none !important; cursor: not-allowed; box-shadow: none; }
+    .clock-action-btn.active-pulse::before {
+      content: ''; position: absolute; inset: -12px; border-radius: 50%;
+      border: 3px solid var(--success); animation: pulseRing 2s ease-out infinite; pointer-events: none;
+    }
+    .btn-sub { font-size: .7rem; opacity: .85; }
+
+    /* ── Session timer ── */
+    .session-timer {
+      font-family: var(--font-mono); font-size: 2.25rem; font-weight: 900;
+      background: var(--grad-success);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      letter-spacing: .08em; text-align: center;
+    }
+    .session-timer.overdue {
+      background: var(--grad-warning);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── Status dots ── */
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; flex-shrink: 0; }
+    .status-dot.green  { background: var(--success); box-shadow: 0 0 0 3px var(--success-bg); }
+    .status-dot.red    { background: var(--danger);  box-shadow: 0 0 0 3px var(--danger-bg); }
+    .status-dot.yellow { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-bg); }
+
+    /* ── QR scanner ── */
+    .qr-scanner-area {
+      width: 100%; max-width: 300px; aspect-ratio: 1;
+      background: var(--gray-900); border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+      color: white; text-align: center; position: relative; overflow: hidden; margin: 0 auto;
+    }
+    .qr-scanner-area video { width: 100%; height: 100%; object-fit: cover; }
+    .scan-frame {
+      position: absolute; inset: 18px;
+      border: 2.5px solid var(--primary-light); border-radius: var(--radius); pointer-events: none;
+    }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(to right, transparent, var(--primary-light), transparent);
+      animation: scanMove 2s linear infinite;
+    }
+    @keyframes scanMove { 0% { top:12%; } 50% { top:88%; } 100% { top:12%; } }
+
+    /* ── Confirmation dialog ── */
+    #confirm-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,.6);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2000; padding: 1rem;
+      opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    }
+    #confirm-overlay.open { opacity: 1; pointer-events: all; }
+    #confirm-box {
+      background: white; border-radius: var(--radius-xl); padding: 2rem;
+      max-width: 380px; width: 100%; box-shadow: var(--shadow-xl);
+      transform: scale(.95); transition: transform .2s ease; text-align: center;
+    }
+    #confirm-overlay.open #confirm-box { transform: scale(1); }
+
+    /* ── Late warning ── */
+    .late-chip {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: linear-gradient(135deg,#fef3c7,#fde68a);
+      color: #92400e; font-size: .78rem; font-weight: 700;
+      padding: .4rem .9rem; border-radius: 999px;
+      border: 1px solid #fcd34d;
+    }
+  </style>
+</head>
+<body>
+<script>window.location.replace('index.html');</script>
+<div class="page-wrapper">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🕒</div>
+      <div>
+        <div class="logo-text">Oasis Pulse</div>
+        <div class="logo-sub">Student Portal</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-link" href="dashboard.html"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-link active" href="clock-in.html"><span class="nav-icon">✅</span> Clock In / Out</a>
+      <div class="nav-section-label">History</div>
+      <a class="nav-link" href="dashboard.html"><span class="nav-icon">📅</span> Attendance History</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="sidebar-avatar">?</div>
+        <div>
+          <div class="user-name" id="sidebar-name">Loading…</div>
+          <div class="user-role">Student</div>
+        </div>
+        <button class="logout-btn" id="logout-btn" title="Logout">🚪</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+
+    <!-- Hero clock bar -->
+    <div class="clock-hero">
+      <div class="clock-time" id="live-clock">00:00:00</div>
+      <div class="clock-date" id="live-date">—</div>
+    </div>
+
+    <div class="page-body">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+        <!-- ── Action panel ── -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Mark Attendance</span>
+            <span id="attendance-status-badge"><span class="badge badge-gray">Not Started</span></span>
+          </div>
+          <div class="card-body">
+            <div class="tabs">
+              <button class="tab-btn active" data-tab="manual">✏️ Manual</button>
+              <button class="tab-btn" data-tab="qr">📷 Scan QR</button>
+            </div>
+
+            <!-- Manual Tab -->
+            <div class="tab-content active" id="tab-manual">
+
+              <div id="manual-alert"></div>
+
+              <div id="late-warning-chip" style="display:none;text-align:center;margin-bottom:1rem;">
+                <span class="late-chip">⚠️ After 9:00 AM — will be marked Late</span>
+              </div>
+
+              <!-- Authenticated identity strip -->
+              <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);
+                           padding:.875rem 1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.75rem;">
+                <div style="width:38px;height:38px;background:var(--grad-primary);border-radius:50%;
+                             display:flex;align-items:center;justify-content:center;color:white;
+                             font-weight:900;font-size:.9rem;flex-shrink:0;" id="ci-avatar">?</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:.82rem;font-weight:700;color:var(--gray-900);" id="ci-name">—</div>
+                  <div style="font-family:var(--font-mono);font-size:.78rem;color:var(--primary);font-weight:700;letter-spacing:.08em;" id="ci-clockid">—</div>
+                </div>
+                <span class="badge badge-success" style="font-size:.68rem;">✅ Verified</span>
+              </div>
+
+              <div class="clock-btns-row">
+                <div style="text-align:center;">
+                  <button class="clock-action-btn clock-in-btn" id="clock-in-btn" aria-label="Clock In">
+                    <span class="btn-icon-large">✅</span>
+                    <span>Clock In</span>
+                    <span class="btn-sub">Start session</span>
+                  </button>
+                </div>
+                <div style="text-align:center;">
+                  <button class="clock-action-btn clock-out-btn" id="clock-out-btn" aria-label="Clock Out">
+                    <span class="btn-icon-large">🚪</span>
+                    <span>Clock Out</span>
+                    <span class="btn-sub">End session</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- QR Tab -->
+            <div class="tab-content" id="tab-qr">
+              <p class="text-sm text-muted" style="margin-bottom:1rem;">
+                Point your camera at the admin's daily QR code to clock in automatically.
+              </p>
+              <div class="qr-scanner-area" id="scanner-area">
+                <div id="scanner-placeholder" style="padding:2rem;text-align:center;">
+                  <div style="font-size:3rem;margin-bottom:.5rem;">📷</div>
+                  <p class="text-sm">Camera not started</p>
+                </div>
+                <video id="qr-video" style="display:none;" playsinline></video>
+                <div class="scan-frame" style="display:none;" id="scan-frame">
+                  <div class="scan-line"></div>
+                </div>
+              </div>
+              <div id="qr-alert" style="margin-top:1rem;"></div>
+              <button class="btn btn-primary btn-block mt-2" id="start-scan-btn">📷 Start Camera</button>
+              <button class="btn btn-ghost btn-block mt-1" id="stop-scan-btn" style="display:none;">⏹ Stop Camera</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Right panel ── -->
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+
+          <!-- Live session timer -->
+          <div class="card" id="timer-card" style="display:none;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0;">
+            <div class="card-body" style="padding:1.5rem;text-align:center;">
+              <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--success);margin-bottom:.5rem;">
+                <span class="status-dot green"></span>Session Active
+              </div>
+              <div class="session-timer" id="session-timer">00:00:00</div>
+              <div class="text-xs text-muted mt-1">Time since clock-in</div>
+            </div>
+          </div>
+
+          <!-- Today's record -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Today's Record</span>
+              <button class="btn btn-ghost btn-sm" id="refresh-btn" title="Refresh">🔄</button>
+            </div>
+            <div class="card-body" id="today-record-panel">
+              <div class="empty-state" style="padding:1.5rem;">
+                <div class="empty-icon">⏳</div>
+                <p>You haven't clocked in yet today.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Clock-In ID -->
+          <div class="clock-id-display">
+            <div class="id-label">Your Clock-In ID</div>
+            <div class="id-value" id="reminder-clock-id">—</div>
+            <button class="btn btn-ghost btn-sm" id="copy-id-btn"
+                    style="margin-top:.875rem;color:var(--gray-400);border-color:rgba(255,255,255,.15);">
+              📋 Copy ID
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation dialog -->
+<div id="confirm-overlay" role="dialog" aria-modal="true">
+  <div id="confirm-box">
+    <div style="font-size:3.5rem;margin-bottom:.75rem;">🚪</div>
+    <h3 style="margin-bottom:.5rem;" class="grad-text">Clock Out?</h3>
+    <p class="text-sm text-muted" id="confirm-msg" style="margin-bottom:1.5rem;">Are you sure you want to end your session?</p>
+    <div class="record-grid" id="confirm-stats" style="margin-bottom:1.5rem;text-align:left;"></div>
+    <div style="display:flex;gap:.75rem;">
+      <button class="btn btn-ghost" style="flex:1;" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-danger" style="flex:1;" id="confirm-ok">Yes, Clock Out</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/api.js"></script>
+<script src="js/fingerprint.js"></script>
+<script>
+  const user  = JSON.parse(localStorage.getItem('tm_user') || 'null');
+  const token = localStorage.getItem('tm_token');
+  if (!token || !user || user.role === 'admin') window.location.href = 'index.html';
+
+  // Initialize before first use
+  let todayRecord = null;
+  let sessionInterval = null;
+  let videoStream = null, scanning = false, scanCanvas = null, scanCtx = null;
+
+  document.getElementById('sidebar-name').textContent      = user.full_name;
+  document.getElementById('sidebar-avatar').textContent    = user.full_name.charAt(0).toUpperCase();
+  document.getElementById('reminder-clock-id').textContent = user.clock_in_id || '—';
+
+  // Populate identity strip
+  document.getElementById('ci-avatar').textContent  = user.full_name.charAt(0).toUpperCase();
+  document.getElementById('ci-name').textContent    = user.full_name;
+  document.getElementById('ci-clockid').textContent = user.clock_in_id || '—';
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user');
+    window.location.href = 'index.html';
+  });
+
+  document.getElementById('copy-id-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(user.clock_in_id || '');
+    showToast('Clock-In ID copied!', 'success');
+  });
+
+  // ── Live wall clock ──────────────────────────────────────
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('live-clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    document.getElementById('live-date').textContent  = now.toLocaleDateString('en-US', {
+      weekday:'long', year:'numeric', month:'long', day:'numeric'
+    });
+    const lateEl = document.getElementById('late-warning-chip');
+    if (lateEl) lateEl.style.display = (now.getHours() >= 9 && !todayRecord?.clock_in_time) ? 'block' : 'none';
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ── Session timer ────────────────────────────────────────
+  function startSessionTimer(clockInISO) {
+    document.getElementById('timer-card').style.display = 'block';
+    const timerEl = document.getElementById('session-timer');
+    function tick() {
+      const ms = Date.now() - new Date(clockInISO).getTime();
+      const h  = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000), s = Math.floor((ms%60000)/1000);
+      timerEl.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      timerEl.classList.toggle('overdue', ms > 9*3600000);
+    }
+    tick(); sessionInterval = setInterval(tick, 1000);
+  }
+  function stopSessionTimer() {
+    clearInterval(sessionInterval); sessionInterval = null;
+    document.getElementById('timer-card').style.display = 'none';
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  // ── Today's record ───────────────────────────────────────
+
+  async function loadTodayRecord() {
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      const data = await api.get(`/attendance/my?month=${new Date().getMonth()+1}&year=${new Date().getFullYear()}`);
+      todayRecord = data.attendance.find(r => r.date === today) || null;
+      renderTodayRecord();
+    } catch(e) { console.error(e); }
+  }
+
+  function renderTodayRecord() {
+    const panel  = document.getElementById('today-record-panel');
+    const badge  = document.getElementById('attendance-status-badge');
+    const inBtn  = document.getElementById('clock-in-btn');
+    const outBtn = document.getElementById('clock-out-btn');
+    inBtn.classList.remove('active-pulse');
+    outBtn.classList.remove('active-pulse');
+
+    if (!todayRecord?.clock_in_time) {
+      panel.innerHTML = `<div class="empty-state" style="padding:1.5rem;"><div class="empty-icon">⏳</div><p>You haven't clocked in yet today.</p></div>`;
+      badge.innerHTML = '<span class="badge badge-gray">Not Started</span>';
+      inBtn.disabled = false; outBtn.disabled = true;
+      stopSessionTimer(); return;
+    }
+
+    const statMap = { present:'badge-success', late:'badge-warning', absent:'badge-danger' };
+    badge.innerHTML = `<span class="badge ${statMap[todayRecord.status]||'badge-gray'}">${todayRecord.status}</span>`;
+
+    const ci  = new Date(todayRecord.clock_in_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const co  = todayRecord.clock_out_time ? new Date(todayRecord.clock_out_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : null;
+    const dur = calcDuration(todayRecord.clock_in_time, todayRecord.clock_out_time) || '—';
+
+    panel.innerHTML = `
+      <div class="record-grid">
+        <div class="record-mini"><div class="label">⏰ Clock In</div><div class="value">${ci}</div></div>
+        <div class="record-mini"><div class="label">🚪 Clock Out</div><div class="value">${co||'—'}</div></div>
+        <div class="record-mini"><div class="label">⏱ Duration</div><div class="value">${dur}</div></div>
+        <div class="record-mini"><div class="label">📍 Location</div><div class="value" style="font-size:.85rem;font-family:var(--font-sans);">${escapeHTML(todayRecord.locations?.name||'N/A')}</div></div>
+      </div>
+      <div class="text-xs text-muted">${todayRecord.qr_used ? '📷 Via QR code' : '✏️ Manual entry'}</div>`;
+
+    inBtn.disabled  = true;
+    outBtn.disabled = !!co;
+    if (!co) { outBtn.classList.add('active-pulse'); startSessionTimer(todayRecord.clock_in_time); }
+    else stopSessionTimer();
+  }
+
+  // ── Clock In ─────────────────────────────────────────────
+  document.getElementById('clock-in-btn').addEventListener('click', async () => {
+    // Clock-In ID comes from the authenticated session — no input needed
+    const clockId = user.clock_in_id;
+    if (!clockId) {
+      showAlert('manual-alert', 'Clock-In ID not found. Please log out and log in again.', 'error');
+      return;
+    }
+    clearAlert('manual-alert');
+    const btn = document.getElementById('clock-in-btn');
+    btn.innerHTML = '<span class="btn-icon-large">⏳</span><span>Clocking…</span>'; btn.disabled = true;
+    try {
+      const fingerprint = await getFingerprint();
+      const data = await api.post('/attendance/clock-in', { clock_in_id: clockId, fingerprint });
+      showToast(data.message, 'success');
+      todayRecord = data.attendance; renderTodayRecord();
+    } catch(err) {
+      btn.innerHTML = '<span class="btn-icon-large">✅</span><span>Clock In</span><span class="btn-sub">Start session</span>';
+      btn.disabled = false;
+      showAlert('manual-alert', err.message || 'Clock-in failed. Please try again.', 'error');
+    }
+  });
+
+  // ── Clock Out (confirm first) ─────────────────────────────
+  document.getElementById('clock-out-btn').addEventListener('click', () => {
+    if (!todayRecord?.clock_in_time) return;
+    const ci    = new Date(todayRecord.clock_in_time).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const elapsed = calcDuration(todayRecord.clock_in_time, new Date().toISOString());
+    document.getElementById('confirm-msg').textContent = `Clocked in at ${ci}. Current session: ${elapsed||'—'}`;
+    document.getElementById('confirm-stats').innerHTML = `
+      <div class="record-mini"><div class="label">Clock In</div><div class="value">${ci}</div></div>
+      <div class="record-mini"><div class="label">Duration</div><div class="value">${elapsed||'—'}</div></div>`;
+    document.getElementById('confirm-overlay').classList.add('open');
+  });
+
+  document.getElementById('confirm-cancel').addEventListener('click', () =>
+    document.getElementById('confirm-overlay').classList.remove('open'));
+
+  document.getElementById('confirm-ok').addEventListener('click', async () => {
+    document.getElementById('confirm-overlay').classList.remove('open');
+    const btn = document.getElementById('clock-out-btn');
+    btn.innerHTML = '<span class="btn-icon-large">⏳</span><span>Clocking…</span>'; btn.disabled = true;
+    try {
+      const data = await api.post('/attendance/clock-out', {});
+      showToast(data.message, 'success');
+      await loadTodayRecord();
+    } catch(err) {
+      btn.innerHTML = '<span class="btn-icon-large">🚪</span><span>Clock Out</span><span class="btn-sub">End session</span>';
+      btn.disabled = !todayRecord?.clock_in_time || !!todayRecord?.clock_out_time;
+      showToast(err.message||'Clock-out failed.','error');
+    }
+  });
+
+  document.getElementById('confirm-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('confirm-overlay'))
+      document.getElementById('confirm-overlay').classList.remove('open');
+  });
+
+  document.getElementById('refresh-btn').addEventListener('click', async () => {
+    const b = document.getElementById('refresh-btn');
+    b.textContent = '⏳'; b.disabled = true;
+    await loadTodayRecord();
+    b.textContent = '🔄'; b.disabled = false;
+  });
+
+  // ── QR Scanner ───────────────────────────────────────────
+  document.getElementById('start-scan-btn').addEventListener('click', startScanner);
+  document.getElementById('stop-scan-btn').addEventListener('click', stopScanner);
+
+  async function startScanner() {
+    // Load jsQR dynamically if not already loaded
+    if (typeof jsQR === 'undefined') {
+      showAlert('qr-alert', 'Loading QR decoder...', 'info');
+      try {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        script.onload = () => startScannerInternal();
+        script.onerror = () => {
+          showAlert('qr-alert', 'QR scanner unavailable. Please use manual clock-in instead.', 'error');
+          document.getElementById('start-scan-btn').disabled = true;
+        };
+        document.head.appendChild(script);
+      } catch(e) {
+        showAlert('qr-alert', 'QR scanner unavailable. Please use manual clock-in instead.', 'error');
+      }
+      return;
+    }
+    startScannerInternal();
+  }
+
+  async function startScannerInternal() {
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'environment'} });
+      const video = document.getElementById('qr-video');
+      video.srcObject = videoStream; video.play(); video.style.display = 'block';
+      document.getElementById('scanner-placeholder').style.display = 'none';
+      document.getElementById('scan-frame').style.display  = 'block';
+      document.getElementById('start-scan-btn').style.display = 'none';
+      document.getElementById('stop-scan-btn').style.display  = 'block';
+      clearAlert('qr-alert');
+      showAlert('qr-alert','Camera active — hold QR code steady in the frame.','info');
+      scanCanvas = document.createElement('canvas'); scanCtx = scanCanvas.getContext('2d');
+      scanning = true; requestAnimationFrame(scanFrame);
+    } catch(e) { showAlert('qr-alert','Camera access denied.','error'); }
+  }
+
+  function stopScanner() {
+    scanning = false;
+    if(videoStream){ videoStream.getTracks().forEach(t=>t.stop()); videoStream=null; }
+    document.getElementById('qr-video').style.display = 'none';
+    document.getElementById('scanner-placeholder').style.display = 'flex';
+    document.getElementById('scan-frame').style.display   = 'none';
+    document.getElementById('start-scan-btn').style.display = 'block';
+    document.getElementById('stop-scan-btn').style.display  = 'none';
+  }
+
+  async function scanFrame() {
+    if(!scanning) return;
+    const video = document.getElementById('qr-video');
+    if(video.readyState === video.HAVE_ENOUGH_DATA){
+      scanCanvas.width=video.videoWidth; scanCanvas.height=video.videoHeight;
+      scanCtx.drawImage(video,0,0,scanCanvas.width,scanCanvas.height);
+      try {
+        const code = typeof jsQR !== 'undefined' ? jsQR(scanCtx.getImageData(0,0,scanCanvas.width,scanCanvas.height).data, scanCanvas.width, scanCanvas.height) : null;
+        if(code){ stopScanner(); await processQRCode(code.data); return; }
+      } catch(e) { console.error('QR decode error:', e); }
+    }
+    requestAnimationFrame(scanFrame);
+  }
+
+  async function processQRCode(raw) {
+    try {
+      const payload = JSON.parse(raw);
+      if(!payload.token) throw new Error('Invalid QR code format');
+      clearAlert('qr-alert'); showAlert('qr-alert','⏳ Verifying QR code…','info');
+      const fingerprint = await getFingerprint();
+      const data = await api.post('/attendance/clock-in', { clock_in_id: user.clock_in_id, qr_token: payload.token, fingerprint });
+      showToast(data.message,'success'); clearAlert('qr-alert');
+      await loadTodayRecord();
+    } catch(err) { showAlert('qr-alert', err.message||'Invalid or expired QR code.','error'); }
+  }
+
+  loadTodayRecord();
+</script>
+</body>
+</html>

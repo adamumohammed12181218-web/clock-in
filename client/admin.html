@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oasis Pulse — Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <!-- Leaflet for map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map { height: 260px; border-radius: var(--radius); margin-top: .75rem; }
+
+    /* Section visibility */
+    .section { display: none; }
+    .section.active { display: block; animation: fadeIn .25s ease; }
+
+    /* ── Mini bar chart ── */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 80px;
+      padding: 0 .25rem;
+    }
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: default;
+      position: relative;
+    }
+    .bar-col:hover .bar-tooltip {
+      display: block;
+    }
+    .bar-rect {
+      width: 100%;
+      min-height: 3px;
+      border-radius: 3px 3px 0 0;
+      transition: height .4s cubic-bezier(.4,0,.2,1);
+    }
+    .bar-label {
+      font-size: .58rem;
+      color: var(--gray-500);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 28px;
+      text-align: center;
+    }
+    .bar-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gray-900);
+      color: white;
+      font-size: .68rem;
+      padding: .25rem .5rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    /* ── Working days grid ── */
+    .weekday-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: .5rem;
+      margin: 1rem 0;
+    }
+    .weekday-toggle {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .35rem;
+    }
+    .weekday-toggle span {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--gray-500);
+    }
+    .day-pill {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--gray-300);
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--gray-400);
+      transition: all .2s ease;
+    }
+    .day-pill.on {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    .day-pill:hover:not(.on) {
+      border-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    /* ── Student detail modal ── */
+    .student-stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: .75rem;
+      margin-bottom: 1.25rem;
+    }
+    .student-stat-mini {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: .75rem;
+      text-align: center;
+    }
+    .student-stat-mini .val {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--gray-900);
+      line-height: 1.1;
+    }
+    .student-stat-mini .lbl {
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--gray-500);
+      margin-top: .25rem;
+    }
+
+    /* ── Print QR ── */
+    @media print {
+      body > * { display: none !important; }
+      #print-qr-area {
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 2rem;
+      }
+    }
+    #print-qr-area { display: none; }
+
+    /* ── Attendance rate bar (admin student view) ── */
+    .att-rate-bar {
+      height: 6px;
+      background: var(--gray-100);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: .25rem;
+    }
+    .att-rate-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--success);
+      transition: width .5s ease;
+    }
+  </style>
+</head>
+<body class="admin-page">
+
+<!-- Hidden print-only QR area -->
+<div id="print-qr-area">
+  <h2 style="margin-bottom:1rem;">Oasis Pulse — Daily QR Code</h2>
+  <img id="print-qr-img" src="" alt="QR Code" style="width:300px;height:300px;" />
+  <p id="print-qr-date" style="margin-top:1rem;font-family:monospace;font-size:1.1rem;"></p>
+</div>
+
+<div class="page-wrapper">
+
+  <!-- ══ Sidebar ══════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🕒</div>
+      <div>
+        <div class="logo-text">Oasis Pulse</div>
+        <div class="logo-sub">Admin Panel</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <a class="nav-link active" href="#" data-section="overview"><span class="nav-icon">📊</span> Dashboard</a>
+
+      <div class="nav-section-label">Attendance</div>
+      <a class="nav-link" href="#" data-section="today"><span class="nav-icon">📅</span> Today's Attendance</a>
+      <a class="nav-link" href="#" data-section="all-attendance"><span class="nav-icon">📋</span> All Records</a>
+
+      <div class="nav-section-label">Management</div>
+      <a class="nav-link" href="#" data-section="qr"><span class="nav-icon">📷</span> QR Code</a>
+      <a class="nav-link" href="#" data-section="students"><span class="nav-icon">🎓</span> Students</a>
+      <a class="nav-link" href="#" data-section="locations"><span class="nav-icon">📍</span> Locations</a>
+      <a class="nav-link" href="#" data-section="settings"><span class="nav-icon">⚙️</span> Settings</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div>
+          <div class="user-name" id="sidebar-name">Admin</div>
+          <div class="user-role">Administrator</div>
+        </div>
+        <button class="logout-btn" id="logout-btn" title="Logout">🚪</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ Main ════════════════════════════════════════════════ -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div class="top-bar-title">
+        <h2 id="section-title">Dashboard</h2>
+        <p id="top-bar-sub">Oasis Pulse Admin</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:.75rem;">
+        <span id="live-time" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);font-size:1.1rem;"></span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- ══ OVERVIEW ══════════════════════════════════════════ -->
+      <div class="section active" id="section-overview">
+        <div class="stats-grid" id="admin-stats">
+          <div class="stat-card blue">
+            <div class="stat-icon">🎓</div>
+            <div><div class="stat-value" id="stat-students">—</div><div class="stat-label">Active Students</div></div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-icon">✅</div>
+            <div><div class="stat-value" id="stat-present-today">—</div><div class="stat-label">Present Today</div></div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-icon">📋</div>
+            <div><div class="stat-value" id="stat-total-records">—</div><div class="stat-label">Total Records</div></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+          <!-- Today's attendance preview -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Today's Attendance</span>
+              <a href="#" class="btn btn-ghost btn-sm" data-section="today">View All →</a>
+            </div>
+            <div class="card-body" style="padding:0;" id="overview-today-list">
+              <div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>
+            </div>
+          </div>
+
+          <!-- QR Code preview -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Today's QR Code</span>
+              <a href="#" class="btn btn-ghost btn-sm" data-section="qr">Manage →</a>
+            </div>
+            <div class="card-body" id="overview-qr-panel">
+              <div class="empty-state"><div class="empty-icon">📷</div><p>No QR generated yet</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 7-day attendance bar chart ── -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Last 7 Days — Attendance</span>
+            <span class="text-xs text-muted">Hover bars for details</span>
+          </div>
+          <div class="card-body" style="padding:1.25rem 1.5rem 1rem;">
+            <div class="bar-chart" id="week-chart">
+              <div class="empty-state" style="padding:1rem;font-size:.8rem;">Loading chart…</div>
+            </div>
+            <div style="display:flex;gap:1.25rem;margin-top:.75rem;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:var(--gray-600);">
+                <span style="width:10px;height:10px;background:var(--success);border-radius:2px;display:inline-block;"></span>Present
+              </div>
+              <div style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:var(--gray-600);">
+                <span style="width:10px;height:10px;background:var(--warning);border-radius:2px;display:inline-block;"></span>Late
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TODAY'S ATTENDANCE ════════════════════════════════ -->
+      <div class="section" id="section-today">
+        <div class="filter-bar">
+          <div style="font-size:.9rem;color:var(--gray-500);">
+            Showing attendance for <strong id="today-date-label">today</strong>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:.5rem;">
+            <button class="btn btn-primary btn-sm" id="export-today-btn">⬇️ Export CSV</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Present Today</span>
+            <span class="badge badge-success" id="today-count-badge">0 students</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Student #</th>
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Method</th>
+                  <th>Device / IP</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="today-table-body">
+                <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--gray-400);">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ALL ATTENDANCE ════════════════════════════════════ -->
+      <div class="section" id="section-all-attendance">
+        <div class="filter-bar">
+          <div class="search-input" style="max-width:240px;">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="form-control" id="att-search" placeholder="Search student…" />
+          </div>
+          <select class="form-control" id="att-month" style="width:auto;">
+            <option value="">All Months</option>
+            <option value="1">January</option><option value="2">February</option>
+            <option value="3">March</option><option value="4">April</option>
+            <option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">October</option>
+            <option value="11">November</option><option value="12">December</option>
+          </select>
+          <select class="form-control" id="att-year" style="width:auto;"></select>
+          <button class="btn btn-primary btn-sm" id="filter-att-btn">Filter</button>
+          <button class="btn btn-ghost btn-sm" id="export-all-btn">⬇️ Export</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Attendance Records</span>
+            <span class="text-sm text-muted" id="all-att-count">—</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Student</th>
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Location</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="all-att-body">
+                <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-400);">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid var(--gray-100);">
+            <span class="text-sm text-muted" id="att-page-info">—</span>
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn btn-ghost btn-sm" id="att-prev-btn">← Prev</button>
+              <button class="btn btn-ghost btn-sm" id="att-next-btn">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ QR CODE ═══════════════════════════════════════════ -->
+      <div class="section" id="section-qr">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Generate Today's QR Code</span></div>
+            <div class="card-body">
+              <div class="alert alert-info mb-2" style="font-size:.83rem;">
+                ℹ️ Only one QR code can be active per day. Generating a new one will invalidate the old one.
+              </div>
+              <div class="form-group">
+                <label class="form-label">Select Location</label>
+                <select id="qr-location-select" class="form-control">
+                  <option value="">Loading locations…</option>
+                </select>
+              </div>
+              <div id="qr-generate-alert"></div>
+              <button class="btn btn-primary btn-block" id="generate-qr-btn">📷 Generate QR Code</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Active QR Code</span>
+              <span class="badge badge-success" id="qr-active-badge" style="display:none;">Active</span>
+            </div>
+            <div class="card-body" id="active-qr-panel">
+              <div class="empty-state">
+                <div class="empty-icon">📷</div>
+                <p>No QR code generated yet today.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ STUDENTS ══════════════════════════════════════════ -->
+      <div class="section" id="section-students">
+        <div class="filter-bar">
+          <div class="search-input" style="flex:1;max-width:320px;">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="form-control" id="student-search" placeholder="Name, email, student number…" />
+          </div>
+          <select class="form-control" id="student-status-filter" style="width:auto;">
+            <option value="">All Students</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="search-students-btn">Search</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Students</span>
+            <span class="text-sm text-muted" id="students-count">—</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Student #</th>
+                  <th>Email</th>
+                  <th>Clock-In ID</th>
+                  <th>Attendance</th>
+                  <th>Registered</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="students-body">
+                <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-400);">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ LOCATIONS ═════════════════════════════════════════ -->
+      <div class="section" id="section-locations">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title" id="location-form-title">Add New Location</span>
+            </div>
+            <div class="card-body">
+              <input type="hidden" id="location-edit-id" />
+              <div class="form-group">
+                <label class="form-label">Location Name</label>
+                <input type="text" id="loc-name" class="form-control" placeholder="e.g. Main Lab" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Address</label>
+                <input type="text" id="loc-address" class="form-control" placeholder="123 Main Street" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Latitude</label>
+                  <input type="number" id="loc-lat" class="form-control" placeholder="-26.2041" step="any" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Longitude</label>
+                  <input type="number" id="loc-lng" class="form-control" placeholder="28.0473" step="any" />
+                </div>
+              </div>
+              <div id="loc-alert"></div>
+              <div style="display:flex;gap:.75rem;margin-top:.5rem;">
+                <button class="btn btn-ghost btn-sm" id="use-my-location-btn">📍 Use My Location</button>
+                <button class="btn btn-primary" style="flex:1;" id="save-location-btn">Save Location</button>
+              </div>
+              <div id="map"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">All Locations</span></div>
+            <div class="card-body" style="padding:0;" id="locations-list">
+              <div class="empty-state"><div class="empty-icon">📍</div><p>No locations yet</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SETTINGS ══════════════════════════════════════════ -->
+      <div class="section" id="section-settings">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+          <!-- Working Days config -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Working Days</span>
+              <span class="text-xs text-muted">Affects absent calculations</span>
+            </div>
+            <div class="card-body">
+              <p class="text-sm text-muted" style="margin-bottom:.5rem;">
+                Toggle which days count as working days. Absent counts are only calculated for these days.
+              </p>
+
+              <div class="weekday-grid" id="weekday-grid">
+                <!-- Built by JS -->
+              </div>
+
+              <div id="working-days-alert"></div>
+
+              <button class="btn btn-primary" id="save-working-days-btn" style="margin-top:.5rem;">
+                💾 Save Working Days
+              </button>
+            </div>
+          </div>
+
+          <!-- Late threshold config (visual only — requires backend extension) -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Attendance Rules</span>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Late Threshold</label>
+                <div style="display:flex;align-items:center;gap:.75rem;">
+                  <input type="time" id="late-threshold" class="form-control" value="09:00"
+                         style="width:auto;" />
+                  <span class="text-sm text-muted">Clock-ins after this time are marked <strong>Late</strong></span>
+                </div>
+                <div class="form-hint">⚠️ This is currently hardcoded in the backend (attendanceController.js line — cutoffHour). Update the source code to change it.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">QR Code Expiry</label>
+                <select class="form-control" id="qr-expiry-select" disabled>
+                  <option value="eod" selected>End of day (23:59)</option>
+                  <option value="15">15 minutes after generation</option>
+                  <option value="60">1 hour after generation</option>
+                </select>
+                <div class="form-hint">⚠️ Currently fixed to end-of-day in adminController.js. Configurable in a future release.</div>
+              </div>
+
+              <div class="alert alert-info" style="font-size:.8rem;">
+                ℹ️ Rule changes marked ⚠️ require a backend code update and server restart to take effect.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- .page-body -->
+  </div><!-- .main-content -->
+</div><!-- .page-wrapper -->
+
+<!-- ══ Override Modal ════════════════════════════════════════ -->
+<div class="modal-overlay" id="override-modal" role="dialog" aria-modal="true" aria-labelledby="override-title">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="override-title">Override Attendance Record</h3>
+      <button class="modal-close" id="override-modal-close" aria-label="Close">✕</button>
+    </div>
+    <input type="hidden" id="override-att-id" />
+    <div class="form-group">
+      <label class="form-label">Clock In Time</label>
+      <input type="datetime-local" id="override-clock-in" class="form-control" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Clock Out Time</label>
+      <input type="datetime-local" id="override-clock-out" class="form-control" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select id="override-status" class="form-control">
+        <option value="present">Present</option>
+        <option value="late">Late</option>
+        <option value="absent">Absent</option>
+      </select>
+    </div>
+    <div id="override-alert"></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-ghost" id="override-cancel">Cancel</button>
+      <button class="btn btn-primary" id="override-save">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Student Detail Modal ══════════════════════════════════ -->
+<div class="modal-overlay" id="student-modal" role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3 id="student-modal-title">Student Details</h3>
+      <button class="modal-close" id="student-modal-close" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Profile strip -->
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--gray-100);">
+      <div class="user-avatar" id="sm-avatar"
+           style="width:52px;height:52px;font-size:1.3rem;background:var(--primary);">?</div>
+      <div style="flex:1;">
+        <div style="font-size:1.1rem;font-weight:800;color:var(--gray-900);" id="sm-name">—</div>
+        <div style="font-size:.8rem;color:var(--gray-500);" id="sm-email">—</div>
+        <div style="font-size:.8rem;color:var(--gray-500);" id="sm-number">—</div>
+      </div>
+      <div>
+        <div class="clock-id-display" style="padding:.75rem 1.25rem;text-align:center;">
+          <div class="id-label" style="font-size:.6rem;">Clock-In ID</div>
+          <div class="id-value" style="font-size:1rem;" id="sm-clock-id">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="student-stat-row" id="sm-stats">
+      <div class="student-stat-mini"><div class="val" id="sm-present">—</div><div class="lbl">Present</div></div>
+      <div class="student-stat-mini"><div class="val" id="sm-late">—</div><div class="lbl">Late</div></div>
+      <div class="student-stat-mini"><div class="val" id="sm-absent">—</div><div class="lbl">Absent</div></div>
+    </div>
+
+    <!-- Attendance rate bar -->
+    <div style="margin-bottom:1.25rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--gray-500);margin-bottom:.3rem;">
+        <span>Attendance Rate</span>
+        <span id="sm-rate">—</span>
+      </div>
+      <div class="att-rate-bar"><div class="att-rate-fill" id="sm-rate-bar" style="width:0%"></div></div>
+    </div>
+
+    <!-- Recent records mini-table -->
+    <div style="font-size:.8rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;">Recent Records</div>
+    <div class="table-wrapper" style="max-height:200px;overflow-y:auto;">
+      <table>
+        <thead><tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Status</th></tr></thead>
+        <tbody id="sm-records">
+          <tr><td colspan="4" style="text-align:center;padding:1rem;color:var(--gray-400);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.25rem;">
+      <button class="btn btn-ghost" id="student-modal-cancel">Close</button>
+      <button class="btn btn-danger btn-sm" id="sm-toggle-btn">Deactivate</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/api.js"></script>
+<script src="js/fingerprint.js"></script>
+<script>
+  // ── Auth guard ─────────────────────────────────────────────
+  const user  = JSON.parse(localStorage.getItem('tm_user') || 'null');
+  const token = localStorage.getItem('tm_token');
+  if (!token || !user || user.role !== 'admin') window.location.href = 'index.html';
+
+  document.getElementById('sidebar-name').textContent   = user.full_name;
+  document.getElementById('sidebar-avatar').textContent = user.full_name.charAt(0).toUpperCase();
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('tm_token');
+    localStorage.removeItem('tm_user');
+    window.location.href = 'index.html';
+  });
+
+  // ── Live clock ─────────────────────────────────────────────
+  setInterval(() => {
+    document.getElementById('live-time').textContent =
+      new Date().toLocaleTimeString('en-US', { hour12: false });
+  }, 1000);
+  document.getElementById('live-time').textContent =
+    new Date().toLocaleTimeString('en-US', { hour12: false });
+
+  // ── Section navigation ─────────────────────────────────────
+  const sectionTitles = {
+    overview: 'Dashboard', today: "Today's Attendance",
+    'all-attendance': 'All Records', qr: 'QR Code',
+    students: 'Students', locations: 'Locations', settings: 'Settings'
+  };
+
+  function showSection(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-link[data-section]').forEach(l => l.classList.remove('active'));
+    const sec = document.getElementById(`section-${name}`);
+    if (!sec) return;
+    sec.classList.add('active');
+    const link = document.querySelector(`.nav-link[data-section="${name}"]`);
+    if (link) link.classList.add('active');
+    document.getElementById('section-title').textContent = sectionTitles[name] || name;
+    sectionLoaders[name] && sectionLoaders[name]();
+  }
+
+  document.querySelectorAll('[data-section]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); showSection(el.dataset.section); });
+  });
+
+  // ── Helpers ────────────────────────────────────────────────
+  const statBadge = {
+    present: '<span class="badge badge-success">Present</span>',
+    late:    '<span class="badge badge-warning">Late</span>',
+    absent:  '<span class="badge badge-danger">Absent</span>'
+  };
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  }
+  function fmtDate(dateStr) {
+    if (!dateStr) return '—';
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday:'short', month:'short', day:'numeric', year:'numeric'
+    });
+  }
+  function calcDur(a, b) {
+    if (!a || !b) return '—';
+    const ms = new Date(b) - new Date(a);
+    if (ms <= 0) return '—';
+    return `${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`;
+  }
+
+  // ── Overview ───────────────────────────────────────────────
+  async function loadOverview() {
+    try {
+      const [statsRes, todayRes, qrRes] = await Promise.allSettled([
+        api.get('/admin/stats'),
+        api.get('/attendance/today'),
+        api.get('/admin/qr/today')
+      ]);
+
+      if (statsRes.status === 'fulfilled') {
+        const s = statsRes.value.stats;
+        document.getElementById('stat-students').textContent      = s.total_active_students;
+        document.getElementById('stat-present-today').textContent = s.present_today;
+        document.getElementById('stat-total-records').textContent = s.total_attendance_records;
+      }
+
+      if (todayRes.status === 'fulfilled') {
+        const list = todayRes.value.attendance.slice(0, 5);
+        const el   = document.getElementById('overview-today-list');
+        el.innerHTML = list.length
+          ? list.map(r => `
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                   padding:.75rem 1.25rem;border-bottom:1px solid var(--gray-100);">
+                <div>
+                  <div class="font-bold text-sm">${escapeHTML(r.students?.full_name || '—')}</div>
+                  <div class="text-xs text-muted">${fmtTime(r.clock_in_time)}</div>
+                </div>
+                ${statBadge[r.status] || ''}
+              </div>`).join('')
+          : '<div class="empty-state"><div class="empty-icon">⏳</div><p>No one has clocked in yet</p></div>';
+      }
+
+      if (qrRes.status === 'fulfilled') {
+        renderActiveQR(qrRes.value.qr, 'overview-qr-panel');
+      }
+
+      // Build 7-day chart
+      buildWeekChart();
+    } catch(e) { console.error(e); }
+  }
+
+  // ── 7-day bar chart ────────────────────────────────────────
+  async function buildWeekChart() {
+    const chartEl = document.getElementById('week-chart');
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().split('T')[0]);
+    }
+
+    // Fetch all records for the past 7 days
+    const oldest = days[0];
+    const newest = days[days.length - 1];
+
+    try {
+      const data = await api.get(`/attendance/all?limit=200`);
+      const records = data.attendance || [];
+
+      // Count present+late per day
+      const counts = {};
+      days.forEach(d => { counts[d] = { present: 0, late: 0, total: 0 }; });
+      records.forEach(r => {
+        if (counts[r.date]) {
+          if (r.status === 'present') counts[r.date].present++;
+          if (r.status === 'late')    counts[r.date].late++;
+          counts[r.date].total++;
+        }
+      });
+
+      const maxTotal = Math.max(1, ...Object.values(counts).map(c => c.present + c.late));
+
+      chartEl.innerHTML = days.map(d => {
+        const c       = counts[d];
+        const total   = c.present + c.late;
+        const pctP    = ((c.present / maxTotal) * 100).toFixed(1);
+        const pctL    = ((c.late    / maxTotal) * 100).toFixed(1);
+        const label   = new Date(d + 'T00:00:00')
+          .toLocaleDateString('en-US', { weekday:'short' }).substring(0,2);
+        return `
+          <div class="bar-col">
+            <div class="bar-tooltip">${fmtDate(d)}: ${c.present} present, ${c.late} late</div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;width:100%;gap:1px;">
+              <div class="bar-rect" style="height:${pctL}%;background:var(--warning);"></div>
+              <div class="bar-rect" style="height:${pctP}%;background:var(--success);"></div>
+            </div>
+            <div class="bar-label">${label}</div>
+          </div>`;
+      }).join('');
+    } catch(e) {
+      chartEl.innerHTML = '<div style="font-size:.8rem;color:var(--gray-400);padding:1rem;">Chart unavailable</div>';
+    }
+  }
+
+  // ── Today's attendance ─────────────────────────────────────
+  async function loadToday() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('today-date-label').textContent = fmtDate(today);
+    try {
+      const data = await api.get('/attendance/today');
+      const list = data.attendance;
+
+      document.getElementById('today-count-badge').textContent =
+        `${list.length} student${list.length !== 1 ? 's' : ''}`;
+
+      const tbody = document.getElementById('today-table-body');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-400);">No one has clocked in yet today.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(r => `
+        <tr>
+          <td><strong>${escapeHTML(r.students?.full_name || '—')}</strong></td>
+          <td class="font-mono text-sm">${escapeHTML(r.students?.student_number || '—')}</td>
+          <td>${fmtTime(r.clock_in_time)}</td>
+          <td>${fmtTime(r.clock_out_time)}</td>
+          <td class="text-sm">${calcDur(r.clock_in_time, r.clock_out_time)}</td>
+          <td>${statBadge[r.status] || ''}</td>
+          <td><span class="badge badge-info">${r.qr_used ? '📷 QR' : '✏️ Manual'}</span></td>
+          <td class="text-xs"><div>${escapeHTML(r.ip_address || 'IP unavailable')}</div><div class="text-muted" title="Browser fingerprint">${escapeHTML(r.device_fingerprint ? `FP …${r.device_fingerprint.slice(-8)}` : 'Fingerprint unavailable')}</div></td>
+          <td>
+            <button class="btn btn-ghost btn-sm"
+              onclick="openOverride('${r.id}','${r.clock_in_time||''}','${r.clock_out_time||''}','${r.status}')">
+              ✏️ Edit
+            </button>
+          </td>
+        </tr>`).join('');
+    } catch(e) { console.error(e); }
+  }
+
+  // Export today CSV
+  document.getElementById('export-today-btn').addEventListener('click', async () => {
+    try {
+      const data = await api.get('/attendance/today');
+      exportCSV(data.attendance, `attendance-today-${new Date().toISOString().split('T')[0]}.csv`);
+    } catch(e) { showToast('Export failed', 'error'); }
+  });
+
+  function exportCSV(list, filename) {
+    const rows = [['Student','Student #','Clock In','Clock Out','Duration','Status','Method','Location']];
+    list.forEach(r => {
+      rows.push([
+        r.students?.full_name   || '',
+        r.students?.student_number || '',
+        r.clock_in_time  ? new Date(r.clock_in_time).toLocaleString()  : '',
+        r.clock_out_time ? new Date(r.clock_out_time).toLocaleString() : '',
+        calcDur(r.clock_in_time, r.clock_out_time),
+        r.status || '',
+        r.qr_used ? 'QR' : 'Manual',
+        r.locations?.name || ''
+      ]);
+    });
+    const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href:url, download:filename }).click();
+    URL.revokeObjectURL(url);
+    showToast('CSV downloaded!', 'success');
+  }
+
+  // ── All attendance ─────────────────────────────────────────
+  let attPage = 1;
+
+  const yearNow = new Date().getFullYear();
+  const attYearSel = document.getElementById('att-year');
+  for (let y = yearNow; y >= yearNow - 3; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === yearNow) opt.selected = true;
+    attYearSel.appendChild(opt);
+  }
+
+  async function loadAllAttendance(page = 1) {
+    attPage = page;
+    const month = document.getElementById('att-month').value;
+    const year  = document.getElementById('att-year').value;
+    let url = `/attendance/all?page=${page}&limit=20`;
+    if (month) url += `&month=${month}`;
+    if (year)  url += `&year=${year}`;
+
+    try {
+      const data  = await api.get(url);
+      const total = data.total;
+      const list  = data.attendance;
+      const pages = Math.ceil(total / 20);
+
+      document.getElementById('all-att-count').textContent = `${total} record${total !== 1 ? 's' : ''}`;
+      document.getElementById('att-page-info').textContent = `Page ${page} of ${pages || 1}`;
+      document.getElementById('att-prev-btn').disabled = page <= 1;
+      document.getElementById('att-next-btn').disabled = page >= pages;
+
+      const tbody = document.getElementById('all-att-body');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-400);">No records found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(r => `
+        <tr>
+          <td>${fmtDate(r.date)}</td>
+          <td><strong>${escapeHTML(r.students?.full_name||'—')}</strong>
+            <br><span class="text-xs text-muted">${escapeHTML(r.students?.student_number||'')}</span></td>
+          <td>${fmtTime(r.clock_in_time)}</td>
+          <td>${fmtTime(r.clock_out_time)}</td>
+          <td class="text-sm">${calcDur(r.clock_in_time, r.clock_out_time)}</td>
+          <td>${statBadge[r.status] || ''}</td>
+          <td class="text-sm">${escapeHTML(r.locations?.name||'—')}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm"
+              onclick="openOverride('${r.id}','${r.clock_in_time||''}','${r.clock_out_time||''}','${r.status}')">
+              ✏️
+            </button>
+          </td>
+        </tr>`).join('');
+    } catch(e) { console.error(e); }
+  }
+
+  document.getElementById('filter-att-btn').addEventListener('click', () => loadAllAttendance(1));
+  document.getElementById('att-prev-btn').addEventListener('click', () => loadAllAttendance(attPage - 1));
+  document.getElementById('att-next-btn').addEventListener('click', () => loadAllAttendance(attPage + 1));
+  document.getElementById('export-all-btn').addEventListener('click', async () => {
+    const month = document.getElementById('att-month').value;
+    const year  = document.getElementById('att-year').value;
+    let url = '/attendance/all?limit=500';
+    if (month) url += `&month=${month}`;
+    if (year)  url += `&year=${year}`;
+    try {
+      const data = await api.get(url);
+      exportCSV(data.attendance, `attendance-export.csv`);
+    } catch(e) { showToast('Export failed','error'); }
+  });
+
+  // ── QR Code ────────────────────────────────────────────────
+  async function loadQR() {
+    try {
+      const locsData = await api.get('/admin/locations').catch(() => ({ locations:[] }));
+      const sel = document.getElementById('qr-location-select');
+      const locs = locsData.locations.filter(l => l.is_active);
+      sel.innerHTML = locs.length
+        ? locs.map(l => `<option value="${l.id}">${escapeHTML(l.name)}</option>`).join('')
+        : '<option value="">No locations — create one first</option>';
+
+      try {
+        const data = await api.get('/admin/qr/today');
+        renderActiveQR(data.qr, 'active-qr-panel');
+        document.getElementById('qr-active-badge').style.display = 'inline-flex';
+      } catch(e) {
+        document.getElementById('active-qr-panel').innerHTML =
+          '<div class="empty-state"><div class="empty-icon">📷</div><p>No QR code generated yet today.</p></div>';
+        document.getElementById('qr-active-badge').style.display = 'none';
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  function renderActiveQR(qr, panelId) {
+    const panel = document.getElementById(panelId);
+    if (!qr) return;
+    panel.innerHTML = `
+      <div class="qr-container">
+        <img src="${qr.image}" class="qr-image" alt="QR Code" />
+        <div class="qr-badge">
+          <div style="font-size:.7rem;color:var(--gray-500);margin-bottom:.25rem;">Token</div>
+          <div class="token">${escapeHTML((qr.token||'').substring(0,16))}…</div>
+        </div>
+        <div class="text-sm text-muted">📍 ${escapeHTML(qr.location || qr.locations?.name || '—')}</div>
+        <div class="text-xs text-muted">Valid until ${new Date(qr.expires_at).toLocaleTimeString()}</div>
+        <button class="btn btn-ghost btn-sm" onclick="printQR('${qr.image}')">🖨️ Print QR</button>
+      </div>`;
+  }
+
+  function printQR(imgSrc) {
+    document.getElementById('print-qr-img').src  = imgSrc;
+    document.getElementById('print-qr-date').textContent =
+      'Date: ' + new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    window.print();
+  }
+
+  document.getElementById('generate-qr-btn').addEventListener('click', async () => {
+    const locationId = document.getElementById('qr-location-select').value;
+    if (!locationId) { showAlert('qr-generate-alert','Please select a location.','error'); return; }
+    const btn = document.getElementById('generate-qr-btn');
+    setLoading(btn, true, 'Generating…');
+    clearAlert('qr-generate-alert');
+    try {
+      const data = await api.post('/admin/qr/generate', { location_id: locationId });
+      renderActiveQR(data.qr, 'active-qr-panel');
+      document.getElementById('qr-active-badge').style.display = 'inline-flex';
+      showToast('QR code generated!', 'success');
+    } catch(e) {
+      showAlert('qr-generate-alert', e.message || 'Failed to generate QR code.', 'error');
+    } finally { setLoading(btn, false); }
+  });
+
+  // ── Students ───────────────────────────────────────────────
+  let studentsCache = [];
+
+  async function loadStudents(search = '', status = '') {
+    let url = '/admin/students?limit=100';
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (status) url += `&is_active=${status}`;
+    try {
+      const data = await api.get(url);
+      studentsCache = data.students || [];
+      document.getElementById('students-count').textContent =
+        `${data.total} student${data.total !== 1 ? 's' : ''}`;
+
+      const tbody = document.getElementById('students-body');
+      if (!studentsCache.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-400);">No students found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = studentsCache.map(s => `
+        <tr>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="openStudentModal('${s.id}')"
+                    style="font-weight:700;color:var(--primary);padding:0;border:none;">
+              ${escapeHTML(s.full_name)}
+            </button>
+          </td>
+          <td class="font-mono text-sm">${escapeHTML(s.student_number)}</td>
+          <td class="text-sm">${escapeHTML(s.email)}</td>
+          <td class="font-mono text-sm" style="letter-spacing:.08em;">${escapeHTML(s.clock_in_id)}</td>
+          <td>
+            <div style="min-width:80px;">
+              <div style="font-size:.75rem;color:var(--gray-500);" id="att-rate-${s.id}">—</div>
+              <div class="att-rate-bar" style="width:80px;">
+                <div class="att-rate-fill" id="att-bar-${s.id}" style="width:0%"></div>
+              </div>
+            </div>
+          </td>
+          <td class="text-xs text-muted">${fmtDate(s.created_at)}</td>
+          <td>${s.is_active
+            ? '<span class="badge badge-success">Active</span>'
+            : '<span class="badge badge-danger">Inactive</span>'}</td>
+          <td style="display:flex;gap:.35rem;">
+            <button class="btn btn-ghost btn-sm" onclick="openStudentModal('${s.id}')">👁</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleStudent('${s.id}',${!s.is_active})">
+              ${s.is_active ? '🔴' : '🟢'}
+            </button>
+          </td>
+        </tr>`).join('');
+
+      // Load attendance rates asynchronously
+      studentsCache.forEach(s => loadStudentRate(s.id));
+    } catch(e) { console.error(e); }
+  }
+
+  async function loadStudentRate(studentId) {
+    try {
+      const data = await api.get(`/attendance/stats/${studentId}`);
+      const total    = (data.present||0) + (data.late||0) + (data.absent||0);
+      const attended = (data.present||0) + (data.late||0);
+      const pct      = total > 0 ? Math.round((attended/total)*100) : 0;
+      const rateEl   = document.getElementById(`att-rate-${studentId}`);
+      const barEl    = document.getElementById(`att-bar-${studentId}`);
+      if (rateEl) rateEl.textContent = `${pct}%`;
+      if (barEl)  { barEl.style.width = `${pct}%`; barEl.style.background = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)'; }
+    } catch(e) { /* silently ignore per-student errors */ }
+  }
+
+  document.getElementById('search-students-btn').addEventListener('click', () => {
+    loadStudents(document.getElementById('student-search').value,
+                 document.getElementById('student-status-filter').value);
+  });
+  document.getElementById('student-search').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('search-students-btn').click();
+  });
+
+  async function toggleStudent(id, newStatus) {
+    try {
+      const data = await api.patch(`/admin/students/${id}`, { is_active: newStatus });
+      showToast(data.message, 'success');
+      loadStudents();
+    } catch(e) { showToast(e.message, 'error'); }
+  }
+
+  // ── Student detail modal ───────────────────────────────────
+  let currentStudentId = null;
+
+  async function openStudentModal(studentId) {
+    currentStudentId = studentId;
+    const student = studentsCache.find(s => s.id === studentId);
+    if (!student) return;
+
+    document.getElementById('sm-avatar').textContent  = student.full_name.charAt(0).toUpperCase();
+    document.getElementById('sm-name').textContent    = student.full_name;
+    document.getElementById('sm-email').textContent   = student.email;
+    document.getElementById('sm-number').textContent  = `Student #: ${student.student_number}`;
+    document.getElementById('sm-clock-id').textContent = student.clock_in_id;
+    document.getElementById('sm-toggle-btn').textContent = student.is_active ? '🔴 Deactivate' : '🟢 Activate';
+    document.getElementById('sm-toggle-btn').className   = student.is_active
+      ? 'btn btn-danger btn-sm' : 'btn btn-success btn-sm';
+
+    // Reset
+    ['sm-present','sm-late','sm-absent'].forEach(id => document.getElementById(id).textContent = '…');
+    document.getElementById('sm-rate').textContent   = '…';
+    document.getElementById('sm-rate-bar').style.width = '0%';
+    document.getElementById('sm-records').innerHTML  =
+      '<tr><td colspan="4" style="text-align:center;padding:1rem;color:var(--gray-400);">Loading…</td></tr>';
+
+    document.getElementById('student-modal').classList.add('open');
+
+    try {
+      const data = await api.get(`/attendance/stats/${studentId}`);
+      document.getElementById('sm-present').textContent = data.present ?? '0';
+      document.getElementById('sm-late').textContent    = data.late    ?? '0';
+      document.getElementById('sm-absent').textContent  = data.absent  ?? '0';
+
+      const total    = (data.present||0) + (data.late||0) + (data.absent||0);
+      const attended = (data.present||0) + (data.late||0);
+      const pct      = total > 0 ? Math.round((attended/total)*100) : 0;
+      document.getElementById('sm-rate').textContent     = `${pct}%`;
+      document.getElementById('sm-rate-bar').style.width = `${pct}%`;
+      document.getElementById('sm-rate-bar').style.background =
+        pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+
+      const records = (data.records || []).slice(0, 10);
+      document.getElementById('sm-records').innerHTML = records.length
+        ? records.map(r => `
+            <tr>
+              <td>${fmtDate(r.date)}</td>
+              <td>${fmtTime(r.clock_in_time)}</td>
+              <td>${fmtTime(r.clock_out_time)}</td>
+              <td>${statBadge[r.status]||''}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="4" style="text-align:center;padding:1rem;color:var(--gray-400);">No records yet.</td></tr>';
+    } catch(e) {
+      document.getElementById('sm-records').innerHTML =
+        '<tr><td colspan="4" style="text-align:center;padding:1rem;color:var(--danger);">Failed to load stats.</td></tr>';
+    }
+  }
+
+  function closeStudentModal() {
+    document.getElementById('student-modal').classList.remove('open');
+    currentStudentId = null;
+  }
+
+  document.getElementById('student-modal-close').addEventListener('click', closeStudentModal);
+  document.getElementById('student-modal-cancel').addEventListener('click', closeStudentModal);
+  document.getElementById('student-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('student-modal')) closeStudentModal();
+  });
+
+  document.getElementById('sm-toggle-btn').addEventListener('click', async () => {
+    if (!currentStudentId) return;
+    const student  = studentsCache.find(s => s.id === currentStudentId);
+    if (!student) return;
+    await toggleStudent(currentStudentId, !student.is_active);
+    closeStudentModal();
+  });
+
+  // ── Locations ──────────────────────────────────────────────
+  let mapInstance = null, mapMarker = null;
+
+  function initMap(lat = 0, lng = 0) {
+    if (!mapInstance) {
+      mapInstance = L.map('map').setView([lat, lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(mapInstance);
+      mapInstance.on('click', e => {
+        document.getElementById('loc-lat').value = e.latlng.lat.toFixed(6);
+        document.getElementById('loc-lng').value = e.latlng.lng.toFixed(6);
+        placeMarker(e.latlng.lat, e.latlng.lng);
+      });
+    } else {
+      mapInstance.setView([lat, lng], 13);
+    }
+  }
+
+  function placeMarker(lat, lng) {
+    if (mapMarker) mapMarker.remove();
+    mapMarker = L.marker([lat, lng]).addTo(mapInstance);
+  }
+
+  document.getElementById('use-my-location-btn').addEventListener('click', () => {
+    if (!navigator.geolocation) { showToast('Geolocation not supported', 'error'); return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      document.getElementById('loc-lat').value = lat.toFixed(6);
+      document.getElementById('loc-lng').value = lng.toFixed(6);
+      initMap(lat, lng);
+      placeMarker(lat, lng);
+    }, () => showToast('Could not get location', 'error'));
+  });
+
+  async function loadLocations() {
+    try {
+      const data = await api.get('/admin/locations');
+      const list = data.locations;
+      const el   = document.getElementById('locations-list');
+
+      el.innerHTML = list.length
+        ? list.map(l => `
+            <div style="display:flex;align-items:center;justify-content:space-between;
+                 padding:1rem 1.25rem;border-bottom:1px solid var(--gray-100);">
+              <div>
+                <div class="font-bold text-sm">${escapeHTML(l.name)}</div>
+                <div class="text-xs text-muted">${escapeHTML(l.address || 'No address')}</div>
+                ${l.latitude ? `<div class="text-xs font-mono text-muted">${l.latitude}, ${l.longitude}</div>` : ''}
+              </div>
+              <div style="display:flex;gap:.5rem;align-items:center;">
+                ${l.is_active
+                  ? '<span class="badge badge-success">Active</span>'
+                  : '<span class="badge badge-gray">Inactive</span>'}
+                <button class="btn btn-ghost btn-sm"
+                  onclick='editLocation(${JSON.stringify(l).replace(/'/g,"&#39;")})'>✏️ Edit</button>
+              </div>
+            </div>`).join('')
+        : '<div class="empty-state"><div class="empty-icon">📍</div><p>No locations yet</p></div>';
+
+      if (list[0]?.latitude) initMap(list[0].latitude, list[0].longitude);
+      else initMap(-26.2041, 28.0473);
+    } catch(e) { console.error(e); }
+  }
+
+  function editLocation(loc) {
+    document.getElementById('location-edit-id').value = loc.id;
+    document.getElementById('loc-name').value         = loc.name;
+    document.getElementById('loc-address').value      = loc.address || '';
+    document.getElementById('loc-lat').value          = loc.latitude  || '';
+    document.getElementById('loc-lng').value          = loc.longitude || '';
+    document.getElementById('location-form-title').textContent = 'Edit Location';
+    if (loc.latitude) { initMap(loc.latitude, loc.longitude); placeMarker(loc.latitude, loc.longitude); }
+  }
+
+  document.getElementById('save-location-btn').addEventListener('click', async () => {
+    const id   = document.getElementById('location-edit-id').value;
+    const name = document.getElementById('loc-name').value.trim();
+    if (!name) { showAlert('loc-alert', 'Location name is required.', 'error'); return; }
+
+    const payload = {
+      name,
+      address:   document.getElementById('loc-address').value.trim(),
+      latitude:  parseFloat(document.getElementById('loc-lat').value)  || null,
+      longitude: parseFloat(document.getElementById('loc-lng').value) || null
+    };
+    clearAlert('loc-alert');
+    const btn = document.getElementById('save-location-btn');
+    setLoading(btn, true);
+    try {
+      if (id) { await api.patch(`/admin/locations/${id}`, payload); showToast('Location updated!','success'); }
+      else    { await api.post('/admin/locations', payload);        showToast('Location created!','success'); }
+      ['location-edit-id','loc-name','loc-address','loc-lat','loc-lng'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('location-form-title').textContent = 'Add New Location';
+      loadLocations();
+    } catch(e) { showAlert('loc-alert', e.message || 'Failed to save location.', 'error'); }
+    finally   { setLoading(btn, false); }
+  });
+
+  // ── Settings — Working Days ────────────────────────────────
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let workingDaysState = [false, true, true, true, true, true, false]; // default Mon-Fri
+
+  async function loadSettings() {
+    try {
+      const data = await api.get('/admin/working-days');
+      const grid = document.getElementById('weekday-grid');
+
+      // Sort by day_of_week 0..6
+      const sorted = [...(data.working_days || [])].sort((a,b) => a.day_of_week - b.day_of_week);
+      sorted.forEach(d => { workingDaysState[d.day_of_week] = d.is_working; });
+
+      grid.innerHTML = DAY_NAMES.map((name, i) => `
+        <div class="weekday-toggle">
+          <span>${name}</span>
+          <div class="day-pill ${workingDaysState[i] ? 'on' : ''}"
+               id="day-${i}" onclick="toggleDay(${i})" role="checkbox"
+               aria-checked="${workingDaysState[i]}" tabindex="0"
+               aria-label="${name}">
+            ${workingDaysState[i] ? '✓' : ''}
+          </div>
+        </div>`).join('');
+    } catch(e) { console.error(e); }
+  }
+
+  function toggleDay(index) {
+    workingDaysState[index] = !workingDaysState[index];
+    const el = document.getElementById(`day-${index}`);
+    el.classList.toggle('on', workingDaysState[index]);
+    el.textContent = workingDaysState[index] ? '✓' : '';
+    el.setAttribute('aria-checked', workingDaysState[index]);
+  }
+
+  document.getElementById('save-working-days-btn').addEventListener('click', async () => {
+    const payload = workingDaysState.map((is_working, day_of_week) => ({ day_of_week, is_working }));
+    const btn = document.getElementById('save-working-days-btn');
+    setLoading(btn, true, 'Saving…');
+    clearAlert('working-days-alert');
+    try {
+      await api.put('/admin/working-days', { working_days: payload });
+      showToast('Working days saved!', 'success');
+    } catch(e) {
+      showAlert('working-days-alert', e.message || 'Failed to save.', 'error');
+    } finally { setLoading(btn, false); }
+  });
+
+  // ── Override Modal ─────────────────────────────────────────
+  function openOverride(id, clockIn, clockOut, status) {
+    document.getElementById('override-att-id').value    = id;
+    document.getElementById('override-clock-in').value  = clockIn  ? clockIn.substring(0,16)  : '';
+    document.getElementById('override-clock-out').value = clockOut ? clockOut.substring(0,16) : '';
+    document.getElementById('override-status').value    = status || 'present';
+    clearAlert('override-alert');
+    document.getElementById('override-modal').classList.add('open');
+  }
+
+  document.getElementById('override-modal-close').addEventListener('click', () =>
+    document.getElementById('override-modal').classList.remove('open'));
+  document.getElementById('override-cancel').addEventListener('click', () =>
+    document.getElementById('override-modal').classList.remove('open'));
+  document.getElementById('override-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('override-modal'))
+      document.getElementById('override-modal').classList.remove('open');
+  });
+
+  document.getElementById('override-save').addEventListener('click', async () => {
+    const id      = document.getElementById('override-att-id').value;
+    const clockIn = document.getElementById('override-clock-in').value;
+    const clockOut= document.getElementById('override-clock-out').value;
+    const status  = document.getElementById('override-status').value;
+    const btn = document.getElementById('override-save');
+    setLoading(btn, true);
+    try {
+      await api.patch(`/attendance/${id}`, {
+        clock_in_time:  clockIn  ? new Date(clockIn).toISOString()  : undefined,
+        clock_out_time: clockOut ? new Date(clockOut).toISOString() : undefined,
+        status
+      });
+      showToast('Attendance updated!', 'success');
+      document.getElementById('override-modal').classList.remove('open');
+      // Refresh whichever section is visible
+      const active = document.querySelector('.section.active')?.id.replace('section-','');
+      if (active === 'today') loadToday();
+      else if (active === 'all-attendance') loadAllAttendance(attPage);
+    } catch(e) {
+      showAlert('override-alert', e.message || 'Update failed.', 'error');
+    } finally { setLoading(btn, false); }
+  });
+
+  // ── Section loader map ─────────────────────────────────────
+  const sectionLoaders = {
+    overview:          loadOverview,
+    today:             loadToday,
+    'all-attendance':  () => loadAllAttendance(1),
+    qr:                loadQR,
+    students:          () => loadStudents(),
+    locations:         () => {
+      loadLocations();
+      setTimeout(() => { if (!mapInstance) initMap(-26.2041, 28.0473); }, 150);
+    },
+    settings:          loadSettings
+  };
+
+  // ── Bootstrap ──────────────────────────────────────────────
+  loadOverview();
+</script>
+</body>
+</html>

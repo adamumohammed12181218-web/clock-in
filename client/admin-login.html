@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oasis Pulse - Staff Access</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <style>
+    .admin-login-page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+      background: #17202a;
+      position: relative;
+      overflow: hidden;
+    }
+    .admin-login-page::before {
+      content: '';
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border: 1px solid rgba(251, 191, 36, .16);
+      border-radius: 50%;
+      right: -230px;
+      top: -210px;
+      box-shadow: 0 0 0 34px rgba(251, 191, 36, .03), 0 0 0 70px rgba(251, 191, 36, .02);
+    }
+    .admin-login-page::after {
+      content: '';
+      position: absolute;
+      width: 340px;
+      height: 340px;
+      border: 1px solid rgba(148, 163, 184, .12);
+      border-radius: 50%;
+      left: -180px;
+      bottom: -160px;
+    }
+    .admin-login-shell {
+      width: 100%;
+      max-width: 430px;
+      position: relative;
+      z-index: 1;
+    }
+    .admin-login-brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 1.5rem;
+      color: #f8fafc;
+    }
+    .admin-login-brand-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      background: #d97706;
+      border-radius: 8px;
+      font-size: 1.25rem;
+      box-shadow: 0 6px 18px rgba(217, 119, 6, .3);
+    }
+    .admin-login-brand-name {
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .admin-login-brand-sub {
+      color: #fbbf24;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .admin-login-card {
+      background: #f8fafb;
+      border: 1px solid #d6dce1;
+      border-top: 4px solid #d97706;
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+    }
+    .admin-login-card h1 {
+      font-size: 1.5rem;
+      color: #17202a;
+      margin-bottom: .35rem;
+    }
+    .admin-login-card > p {
+      color: #687682;
+      font-size: .85rem;
+      margin-bottom: 1.5rem;
+    }
+    .admin-login-page .form-group { margin-bottom: 1rem; }
+    .admin-login-page .form-label {
+      color: #34424e;
+      font-size: .75rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .admin-login-page .form-control { background: white; }
+    .admin-login-button {
+      width: 100%;
+      padding: .8rem 1rem;
+      border: 0;
+      border-radius: 6px;
+      background: #d97706;
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 5px 15px rgba(217, 119, 6, .25);
+    }
+    .admin-login-button:hover:not(:disabled) { background: #b45309; }
+    .admin-login-button:disabled { opacity: .6; cursor: wait; }
+    .admin-login-error {
+      display: none;
+      margin-bottom: 1rem;
+      padding: .7rem .8rem;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      background: #fef2f2;
+      color: #991b1b;
+      font-size: .82rem;
+    }
+    .admin-login-error.visible { display: block; }
+    .back-to-students {
+      display: inline-block;
+      margin-top: 1.25rem;
+      color: #fbbf24;
+      font-size: .8rem;
+      font-weight: 700;
+    }
+    .back-to-students:hover { color: white; }
+  </style>
+</head>
+<body class="admin-page admin-login-page">
+  <main class="admin-login-shell">
+    <div class="admin-login-brand">
+      <div class="admin-login-brand-icon">&#128336;</div>
+      <div>
+        <div class="admin-login-brand-name">Oasis Pulse</div>
+        <div class="admin-login-brand-sub">Staff console</div>
+      </div>
+    </div>
+
+    <section class="admin-login-card" aria-labelledby="admin-login-title">
+      <h1 id="admin-login-title">Staff access</h1>
+      <p>Sign in to manage attendance, students, locations, and daily operations.</p>
+      <div class="admin-login-error" id="admin-login-error" role="alert"></div>
+      <form id="admin-login-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="admin-username">Username</label>
+          <input class="form-control" type="text" id="admin-username" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="admin-password">Password</label>
+          <input class="form-control" type="password" id="admin-password" autocomplete="current-password" required />
+        </div>
+        <button class="admin-login-button" id="admin-login-button" type="submit">Sign in to admin panel</button>
+      </form>
+    </section>
+
+    <a class="back-to-students" href="index.html">&#8592; Return to student sign in</a>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const token = localStorage.getItem('tm_token');
+    const user = JSON.parse(localStorage.getItem('tm_user') || 'null');
+    if (token && user && user.role === 'admin') window.location.href = 'admin.html';
+
+    const form = document.getElementById('admin-login-form');
+    const error = document.getElementById('admin-login-error');
+    const button = document.getElementById('admin-login-button');
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const username = document.getElementById('admin-username').value.trim();
+      const password = document.getElementById('admin-password').value;
+      error.classList.remove('visible');
+
+      if (!username || !password) {
+        error.textContent = 'Please enter your username and password.';
+        error.classList.add('visible');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Signing in...';
+      try {
+        const data = await api.post('/auth/admin/login', { username, password });
+        localStorage.setItem('tm_token', data.token);
+        localStorage.setItem('tm_user', JSON.stringify(data.user));
+        window.location.href = 'admin.html';
+      } catch (err) {
+        error.textContent = err.message || 'Login failed. Check your credentials.';
+        error.classList.add('visible');
+        button.disabled = false;
+        button.textContent = 'Sign in to admin panel';
+      }
+    });
+  </script>
+</body>
+</html>
