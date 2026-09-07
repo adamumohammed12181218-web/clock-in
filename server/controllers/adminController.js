@@ -186,7 +186,7 @@ async function getAllStudents(req, res) {
 
     let query = supabase
       .from('students')
-      .select('id, full_name, student_number, email, phone, clock_in_id, is_active, created_at', { count: 'exact' })
+      .select('id, full_name, student_number, email, phone, clock_in_id, registered_ip, registered_mac, is_active, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

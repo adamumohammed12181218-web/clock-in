@@ -35,7 +35,7 @@ app.use(cors({
     callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-device-fingerprint']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-device-fingerprint', 'x-device-mac', 'x-client-mac']
 }));
 
 // Rate limiting — 100 requests per 15 minutes per IP

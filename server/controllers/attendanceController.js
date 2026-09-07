@@ -1,4 +1,5 @@
 const supabase = require('../db/supabase');
+const { getClientIP, getClientMAC } = require('../middleware/deviceCheck');
 
 // ─────────────────────────────────────────────────────────────────
 // POST /api/attendance/clock-in
@@ -8,6 +9,7 @@ async function clockIn(req, res) {
     const studentId = req.user.id;
     const { clock_in_id, qr_token, fingerprint } = req.body;
     const clientIP = req.clientIP;
+    const clientMAC = req.clientMAC;
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     // 1. Verify clock_in_id matches the authenticated student
@@ -90,6 +92,7 @@ async function clockIn(req, res) {
         location_id: locationId,
         clock_in_time: now.toISOString(),
         ip_address: clientIP,
+        mac_address: clientMAC,
         device_fingerprint: fingerprint || null,
         date: today,
         qr_used: !!qr_token,
@@ -220,7 +223,7 @@ async function getTodayAttendance(req, res) {
     const { data, error } = await supabase
       .from('attendance')
       .select(`
-        id, date, clock_in_time, clock_out_time, status, qr_used, ip_address, device_fingerprint,
+        id, date, clock_in_time, clock_out_time, status, qr_used, ip_address, mac_address, device_fingerprint,
         students (id, full_name, student_number, clock_in_id),
         locations (name)
       `)
@@ -249,7 +252,7 @@ async function getAllAttendance(req, res) {
     let query = supabase
       .from('attendance')
       .select(`
-        id, date, clock_in_time, clock_out_time, status, qr_used, ip_address, device_fingerprint,
+        id, date, clock_in_time, clock_out_time, status, qr_used, ip_address, mac_address, device_fingerprint,
         students (id, full_name, student_number, clock_in_id),
         locations (name)
       `, { count: 'exact' })
@@ -418,8 +421,8 @@ async function getStats(req, res) {
 async function clockPunch(req, res) {
   try {
     const { clock_in_id, fingerprint, qr_token } = req.body;
-    const clientIP = req.headers['x-forwarded-for']?.split(',')[0].trim()
-      || req.socket?.remoteAddress || 'unknown';
+    const clientIP = getClientIP(req);
+    const clientMAC = getClientMAC(req);
 
     if (!clock_in_id) {
       return res.status(400).json({ error: 'Clock-In ID is required' });
@@ -428,7 +431,7 @@ async function clockPunch(req, res) {
     // 1. Find student by clock_in_id
     const { data: student, error: studentErr } = await supabase
       .from('students')
-      .select('id, full_name, email, student_number, clock_in_id, registered_ip, device_fingerprint, is_active')
+      .select('id, full_name, email, student_number, clock_in_id, registered_ip, registered_mac, device_fingerprint, is_active')
       .eq('clock_in_id', clock_in_id.trim().toUpperCase())
       .single();
 
@@ -440,16 +443,20 @@ async function clockPunch(req, res) {
     }
 
     // 2. Device check — register device on first punch, strict check in production
-    if (!student.registered_ip && !student.device_fingerprint) {
+    if (!student.registered_ip && !student.registered_mac && !student.device_fingerprint) {
       // First time — bind this device
       await supabase.from('students')
-        .update({ registered_ip: clientIP, device_fingerprint: fingerprint || null })
+        .update({ registered_ip: clientIP, registered_mac: clientMAC, device_fingerprint: fingerprint || null })
         .eq('id', student.id);
     } else if (process.env.NODE_ENV === 'production') {
       const ipMatch = student.registered_ip === clientIP;
+      const macMatch = student.registered_mac && clientMAC
+        ? student.registered_mac === clientMAC
+        : false;
       const fpMatch = student.device_fingerprint && fingerprint
         ? student.device_fingerprint === fingerprint : false;
-      if (!ipMatch && !fpMatch) {
+      const deviceMatch = student.registered_mac ? macMatch : ipMatch || fpMatch;
+      if (!deviceMatch) {
         return res.status(403).json({
           error: 'This Clock-In ID is registered to a different device.',
           code: 'DEVICE_MISMATCH'
@@ -498,6 +505,7 @@ async function clockPunch(req, res) {
         .insert({
           student_id: student.id, location_id: locationId,
           clock_in_time: now.toISOString(), ip_address: clientIP,
+          mac_address: clientMAC,
           device_fingerprint: fingerprint || null,
           date: today, qr_used: !!qr_token, status
         })

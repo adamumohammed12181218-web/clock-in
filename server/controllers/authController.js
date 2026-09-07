@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const supabase = require('../db/supabase');
 const { signToken, generateClockInId } = require('../utils/tokenHelper');
-const { getClientIP } = require('../middleware/deviceCheck');
+const { getClientIP, getClientMAC } = require('../middleware/deviceCheck');
 
 // ─────────────────────────────────────────────────────────────────
 // POST /api/auth/register  — Student self-registration
@@ -30,6 +30,7 @@ async function registerStudent(req, res) {
 
     const clock_in_id  = generateClockInId();
     const clientIP     = getClientIP(req);
+    const clientMAC    = getClientMAC(req);
 
     // We store an empty hash as placeholder — students don't use passwords
     // Use bcrypt hash of a random value so schema NOT NULL is satisfied
@@ -46,6 +47,7 @@ async function registerStudent(req, res) {
         password_hash,          // placeholder — never used for login
         clock_in_id,
         registered_ip:      clientIP,
+        registered_mac:     clientMAC,
         device_fingerprint: fingerprint || null
       })
       .select('id, full_name, email, student_number, clock_in_id, created_at')
@@ -94,6 +96,7 @@ async function loginStudent(req, res) {
     const { fingerprint } = req.body;
     const clock_in_id = req.body.clock_in_id || req.body.tracking_id;
     const clientIP = getClientIP(req);
+    const clientMAC = getClientMAC(req);
 
     if (!clock_in_id) {
       return res.status(400).json({ error: 'Tracking ID is required' });
@@ -105,7 +108,7 @@ async function loginStudent(req, res) {
     // 1. Find the student
     const { data: student, error } = await supabase
       .from('students')
-      .select('id, full_name, email, student_number, clock_in_id, registered_ip, device_fingerprint, is_active, created_at')
+      .select('id, full_name, email, student_number, clock_in_id, registered_ip, registered_mac, device_fingerprint, is_active, created_at')
       .eq('clock_in_id', clock_in_id.trim().toUpperCase())
       .single();
 
@@ -119,10 +122,10 @@ async function loginStudent(req, res) {
 
     // 2. Device validation
     // If no device registered yet (brand-new account) → register this device now
-    if (!student.registered_ip && !student.device_fingerprint) {
+    if (!student.registered_ip && !student.registered_mac && !student.device_fingerprint) {
       await supabase
         .from('students')
-        .update({ registered_ip: clientIP, device_fingerprint: fingerprint || null })
+        .update({ registered_ip: clientIP, registered_mac: getClientMAC(req), device_fingerprint: fingerprint || null })
         .eq('id', student.id);
 
       console.log(`[Auth] First login for ${student.full_name} — device registered: IP=${clientIP}`);
@@ -130,11 +133,15 @@ async function loginStudent(req, res) {
       // Strict device check in production
       if (process.env.NODE_ENV === 'production') {
         const ipMatch = student.registered_ip === clientIP;
+        const macMatch = student.registered_mac && clientMAC
+          ? student.registered_mac === clientMAC
+          : false;
         const fpMatch = student.device_fingerprint && fingerprint
           ? student.device_fingerprint === fingerprint
           : false;
+        const deviceMatch = student.registered_mac ? macMatch : ipMatch || fpMatch;
 
-        if (!ipMatch && !fpMatch) {
+        if (!deviceMatch) {
           console.warn(`[Auth] BLOCKED login for ${student.full_name}: IP mismatch (got ${clientIP}, expected ${student.registered_ip})`);
           return res.status(403).json({
             error: 'This Tracking ID is registered to a different device. You must log in from your registered device.',

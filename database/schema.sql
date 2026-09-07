@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS students (
   password_hash       VARCHAR(255),            -- NULL for students (they use Clock-In ID)
   clock_in_id         VARCHAR(20) UNIQUE NOT NULL,
   registered_ip       VARCHAR(100),
+  registered_mac      VARCHAR(17),
   device_fingerprint  TEXT,
   is_active           BOOLEAN DEFAULT true,
   created_at          TIMESTAMPTZ DEFAULT NOW()
@@ -74,12 +75,17 @@ CREATE TABLE IF NOT EXISTS attendance (
   clock_in_time       TIMESTAMPTZ,
   clock_out_time      TIMESTAMPTZ,
   ip_address          VARCHAR(100),
+  mac_address         VARCHAR(17),
   device_fingerprint  TEXT,
   date                DATE NOT NULL,
   qr_used             BOOLEAN DEFAULT false,
   status              VARCHAR(20) DEFAULT 'present' CHECK (status IN ('present', 'late', 'absent')),
   created_at          TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Safe upgrades for databases created from an older schema.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS registered_mac VARCHAR(17);
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS mac_address VARCHAR(17);
 
 -- ───────────────────────────────────────────────────────────────
 -- TABLE: working_days (admin configures which days are work days)
@@ -106,6 +112,8 @@ ON CONFLICT (day_of_week) DO NOTHING;
 -- INDEXES for performance
 -- ───────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id, date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_one_clock_in_per_day
+  ON attendance(student_id, date) WHERE clock_in_time IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
 CREATE INDEX IF NOT EXISTS idx_qr_codes_valid_date ON qr_codes(valid_date);
 CREATE INDEX IF NOT EXISTS idx_students_clock_in_id ON students(clock_in_id);
